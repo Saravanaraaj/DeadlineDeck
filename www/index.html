@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F1419">
+<title>Deadline Deck</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<style>
+  :root{
+    --bg:#0F1419;
+    --surface:#1A2129;
+    --surface-2:#20282f;
+    --ink:#E8E6E1;
+    --muted:#8B95A1;
+    --calm:#4F9D8F;
+    --calm-bg:rgba(79,157,143,0.14);
+    --warn:#D9A544;
+    --warn-bg:rgba(217,165,68,0.14);
+    --urgent:#D9584A;
+    --urgent-bg:rgba(217,88,74,0.16);
+    --line:#2A3339;
+    --line-soft:#232B31;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    padding-bottom:90px;
+  }
+  .topbar{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(to bottom, var(--bg) 85%, transparent);
+    padding:22px 18px 10px;
+  }
+  .topbar h1{
+    font-size:22px; margin:0 0 2px; font-weight:700; letter-spacing:-0.01em;
+  }
+  .topbar .sub{
+    color:var(--muted); font-size:13px; margin:0;
+  }
+  .permission-banner{
+    margin:10px 18px 0; padding:10px 12px; border-radius:10px;
+    background:var(--warn-bg); border:1px solid rgba(217,165,68,0.35);
+    color:var(--warn); font-size:12.5px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .permission-banner button{
+    background:var(--warn); color:#1a1406; border:none; border-radius:7px;
+    padding:6px 10px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap;
+  }
+  .stat-row{
+    display:flex; gap:10px; padding:14px 18px 4px; overflow-x:auto;
+  }
+  .stat{
+    flex:1; min-width:88px; background:var(--surface); border:1px solid var(--line);
+    border-radius:12px; padding:12px 12px 10px;
+  }
+  .stat .num{font-size:26px; font-weight:700; line-height:1; font-variant-numeric:tabular-nums;}
+  .stat .lbl{font-size:11.5px; color:var(--muted); margin-top:4px;}
+  .stat.overdue .num{color:var(--urgent);}
+  .stat.today .num{color:var(--warn);}
+  .stat.upcoming .num{color:var(--calm);}
+
+  .tabs{
+    display:flex; gap:6px; padding:14px 18px 6px; overflow-x:auto;
+  }
+  .tab{
+    padding:7px 13px; border-radius:20px; font-size:13px; font-weight:600;
+    background:var(--surface); color:var(--muted); border:1px solid var(--line);
+    cursor:pointer; white-space:nowrap; user-select:none;
+  }
+  .tab.active{background:var(--ink); color:#12161a; border-color:var(--ink);}
+
+  .list{padding:8px 18px 10px; display:flex; flex-direction:column; gap:10px;}
+
+  .task{
+    background:var(--surface); border:1px solid var(--line); border-radius:14px;
+    padding:14px; display:flex; gap:12px; align-items:flex-start; cursor:pointer;
+    position:relative; overflow:hidden;
+  }
+  .task::before{
+    content:""; position:absolute; left:0; top:0; bottom:0; width:4px;
+  }
+  .task.overdue::before{background:var(--urgent);}
+  .task.today::before{background:var(--warn);}
+  .task.upcoming::before{background:var(--calm);}
+  .task.done{opacity:0.45;}
+  .task.done .title{text-decoration:line-through;}
+
+  .count{
+    flex:0 0 auto; width:64px; text-align:center; padding-top:1px;
+  }
+  .count .n{font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1;}
+  .count .u{font-size:10.5px; color:var(--muted); text-transform:lowercase; margin-top:2px;}
+  .task.overdue .count .n{color:var(--urgent);}
+  .task.today .count .n{color:var(--warn);}
+  .task.upcoming .count .n{color:var(--calm);}
+
+  .task .body{flex:1; min-width:0;}
+  .task .title{font-size:15.5px; font-weight:600; margin:0 0 4px; word-break:break-word;}
+  .task .meta{font-size:12.5px; color:var(--muted); display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+  .badge{
+    font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px;
+    background:var(--surface-2); color:var(--muted); border:1px solid var(--line);
+  }
+  .badge.exam{color:var(--urgent); border-color:rgba(217,88,74,0.3);}
+  .badge.work{color:#7fb0d9; border-color:rgba(127,176,217,0.3);}
+  .badge.personal{color:var(--calm); border-color:rgba(79,157,143,0.3);}
+
+  .empty{
+    text-align:center; padding:60px 20px; color:var(--muted);
+  }
+  .empty .glyph{font-size:34px; margin-bottom:10px;}
+  .empty p{font-size:13.5px; margin:4px 0;}
+
+  .fab{
+    position:fixed; bottom:22px; right:20px; width:56px; height:56px; border-radius:50%;
+    background:var(--ink); color:#12161a; border:none; font-size:28px; font-weight:400;
+    box-shadow:0 8px 22px rgba(0,0,0,0.4); cursor:pointer; z-index:30;
+    display:flex; align-items:center; justify-content:center; line-height:0;
+  }
+
+  .sheet-backdrop{
+    position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:40;
+    opacity:0; pointer-events:none; transition:opacity .18s ease;
+  }
+  .sheet-backdrop.show{opacity:1; pointer-events:auto;}
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:41;
+    background:var(--surface); border-radius:20px 20px 0 0;
+    padding:16px 18px 22px; max-height:88vh; overflow-y:auto;
+    transform:translateY(102%); transition:transform .22s cubic-bezier(.32,.72,0,1);
+    border-top:1px solid var(--line);
+  }
+  .sheet.show{transform:translateY(0);}
+  .sheet-handle{width:36px; height:4px; background:var(--line); border-radius:4px; margin:0 auto 14px;}
+  .sheet h2{font-size:17px; margin:0 0 14px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; font-weight:600;}
+  .field input[type=text], .field input[type=datetime-local], .field textarea{
+    width:100%; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+    padding:11px 12px; color:var(--ink); font-size:15px; font-family:inherit;
+  }
+  .field textarea{resize:vertical; min-height:50px;}
+  .cat-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .cat-choice{
+    padding:8px 14px; border-radius:10px; background:var(--surface-2); border:1px solid var(--line);
+    font-size:13.5px; font-weight:600; color:var(--muted); cursor:pointer;
+  }
+  .cat-choice.sel{border-color:var(--ink); color:var(--ink);}
+  .chip-row{display:flex; gap:8px; flex-wrap:wrap;}
+  .chip{
+    padding:7px 12px; border-radius:20px; background:var(--surface-2); border:1px solid var(--line);
+    font-size:12.5px; font-weight:600; color:var(--muted); cursor:pointer;
+  }
+  .chip.sel{background:var(--calm-bg); color:var(--calm); border-color:rgba(79,157,143,0.4);}
+  .custom-offset{display:flex; gap:8px; margin-top:10px;}
+  .custom-offset input{flex:1;}
+  .custom-offset select{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:10px; color:var(--ink); padding:0 10px;
+  }
+  .custom-offset button{
+    background:var(--surface-2); border:1px solid var(--line); border-radius:10px; color:var(--ink);
+    padding:0 14px; font-weight:600; cursor:pointer;
+  }
+  .offset-list{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .offset-pill{
+    font-size:11.5px; background:var(--surface-2); border:1px solid var(--line); border-radius:20px;
+    padding:4px 10px; color:var(--ink); display:flex; align-items:center; gap:6px;
+  }
+  .offset-pill .x{cursor:pointer; color:var(--muted); font-weight:700;}
+
+  .sheet-actions{display:flex; gap:10px; margin-top:18px;}
+  .btn{
+    flex:1; padding:13px; border-radius:12px; border:none; font-size:15px; font-weight:700; cursor:pointer;
+  }
+  .btn.primary{background:var(--ink); color:#12161a;}
+  .btn.ghost{background:transparent; color:var(--muted); border:1px solid var(--line);}
+  .btn.danger{background:var(--urgent-bg); color:var(--urgent); border:1px solid rgba(217,88,74,0.35);}
+
+  .detail-row{display:flex; gap:10px; margin-bottom:16px;}
+  .detail-row .btn{margin:0;}
+
+  ::-webkit-scrollbar{width:0;height:0;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Deadline Deck</h1>
+  <p class="sub" id="subhead">Loading…</p>
+</div>
+
+<div id="permBanner" class="permission-banner" style="display:none;">
+  <span>Turn on notifications so reminders can actually reach you.</span>
+  <button id="permBtn">Enable</button>
+</div>
+
+<div class="stat-row">
+  <div class="stat overdue"><div class="num" id="statOverdue">0</div><div class="lbl">Overdue</div></div>
+  <div class="stat today"><div class="num" id="statToday">0</div><div class="lbl">Due today</div></div>
+  <div class="stat upcoming"><div class="num" id="statUpcoming">0</div><div class="lbl">Upcoming</div></div>
+</div>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="list" id="list"></div>
+
+<button class="fab" id="fabAdd">+</button>
+
+<div class="sheet-backdrop" id="backdrop"></div>
+
+<!-- Add / Edit sheet -->
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <h2 id="sheetTitle">New deadline</h2>
+  <div class="field">
+    <label>What is it</label>
+    <input type="text" id="fTitle" placeholder="e.g. SSC CGL Tier 1 exam">
+  </div>
+  <div class="field">
+    <label>Category</label>
+    <div class="cat-row" id="fCatRow"></div>
+  </div>
+  <div class="field">
+    <label>Deadline date & time</label>
+    <input type="datetime-local" id="fDeadline">
+  </div>
+  <div class="field">
+    <label>Remind me before</label>
+    <div class="chip-row" id="fChipRow"></div>
+    <div class="custom-offset">
+      <input type="text" id="fCustomVal" placeholder="Custom amount" inputmode="numeric">
+      <select id="fCustomUnit">
+        <option value="1">minutes</option>
+        <option value="60">hours</option>
+        <option value="1440" selected>days</option>
+      </select>
+      <button id="fCustomAdd" type="button">Add</button>
+    </div>
+    <div class="offset-list" id="fOffsetList"></div>
+  </div>
+  <div class="field">
+    <label>Notes (optional)</label>
+    <textarea id="fNotes" placeholder="Exam center, syllabus link, anything you'll forget"></textarea>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn ghost" id="fCancel">Cancel</button>
+    <button class="btn primary" id="fSave">Save</button>
+  </div>
+</div>
+
+<!-- Detail sheet -->
+<div class="sheet" id="detailSheet">
+  <div class="sheet-handle"></div>
+  <h2 id="dTitle">Task</h2>
+  <p class="sub" id="dMeta" style="margin-bottom:16px;"></p>
+  <p id="dNotes" style="font-size:14px; color:var(--muted); white-space:pre-wrap;"></p>
+  <div class="detail-row" style="margin-top:10px;">
+    <button class="btn ghost" id="dEdit">Edit</button>
+    <button class="btn primary" id="dComplete">Mark done</button>
+  </div>
+  <div class="detail-row">
+    <button class="btn danger" id="dDelete">Delete</button>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'deadlineDeck.tasks.v1';
+const CATEGORIES = [
+  {id:'exam', label:'Govt Exam'},
+  {id:'work', label:'Work'},
+  {id:'personal', label:'Personal'}
+];
+const OFFSET_PRESETS = [
+  {label:'7d', mins:7*1440},
+  {label:'3d', mins:3*1440},
+  {label:'1d', mins:1440},
+  {label:'12h', mins:720},
+  {label:'3h', mins:180},
+  {label:'1h', mins:60},
+  {label:'30m', mins:30},
+  {label:'At time', mins:0},
+];
+
+let tasks = [];
+let currentFilter = 'all';
+let editingId = null;
+let draftOffsets = [];
+let draftCategory = 'exam';
+
+function load(){
+  try{ tasks = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ tasks = []; }
+}
+function save(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+}
+
+function fmtOffset(mins){
+  if(mins === 0) return 'at deadline';
+  if(mins < 60) return mins+'m before';
+  if(mins < 1440) return (mins/60)+'h before';
+  return (mins/1440)+'d before';
+}
+function fmtOffsetShort(mins){
+  if(mins === 0) return '0';
+  if(mins < 60) return mins+'m';
+  if(mins < 1440) return (mins/60)+'h';
+  return (mins/1440)+'d';
+}
+
+function timeLeftParts(deadlineMs){
+  const now = Date.now();
+  let diff = deadlineMs - now;
+  const overdue = diff < 0;
+  diff = Math.abs(diff);
+  const mins = Math.floor(diff/60000);
+  const days = Math.floor(mins/1440);
+  const hours = Math.floor((mins%1440)/60);
+  const remMins = mins%60;
+  return {overdue, days, hours, mins:remMins};
+}
+
+function statusOf(task){
+  if(task.completed) return 'done';
+  const now = Date.now();
+  const d = new Date(task.deadline).getTime();
+  if(d < now) return 'overdue';
+  if(d - now < 24*3600*1000) return 'today';
+  return 'upcoming';
+}
+
+function renderTabs(){
+  const wrap = document.getElementById('tabs');
+  const defs = [{id:'all', label:'All'}, ...CATEGORIES];
+  wrap.innerHTML = defs.map(c => `<div class="tab ${currentFilter===c.id?'active':''}" data-tab="${c.id}">${c.label}</div>`).join('');
+  wrap.querySelectorAll('.tab').forEach(el=>{
+    el.addEventListener('click', ()=>{ currentFilter = el.dataset.tab; renderList(); renderTabs(); });
+  });
+}
+
+function renderStats(){
+  const active = tasks.filter(t=>!t.completed);
+  let overdue=0, today=0, upcoming=0;
+  active.forEach(t=>{
+    const s = statusOf(t);
+    if(s==='overdue') overdue++;
+    else if(s==='today') today++;
+    else upcoming++;
+  });
+  document.getElementById('statOverdue').textContent = overdue;
+  document.getElementById('statToday').textContent = today;
+  document.getElementById('statUpcoming').textContent = upcoming;
+
+  const next = active.filter(t=>statusOf(t)!=='overdue').sort((a,b)=>new Date(a.deadline)-new Date(b.deadline))[0];
+  const overdueCount = overdue;
+  let sub;
+  if(overdueCount>0){
+    sub = overdueCount===1 ? '1 deadline has already passed' : overdueCount+' deadlines have already passed';
+  } else if(next){
+    const p = timeLeftParts(new Date(next.deadline).getTime());
+    sub = `Next up: “${next.title}” in ${p.days}d ${p.hours}h`;
+  } else {
+    sub = 'Nothing on the deck yet';
+  }
+  document.getElementById('subhead').textContent = sub;
+}
+
+function catLabel(id){
+  const c = CATEGORIES.find(c=>c.id===id);
+  return c ? c.label : id;
+}
+
+function renderList(){
+  const wrap = document.getElementById('list');
+  let visible = tasks.filter(t => currentFilter==='all' || t.category===currentFilter);
+
+  visible.sort((a,b)=>{
+    if(!!a.completed !== !!b.completed) return a.completed ? 1 : -1;
+    return new Date(a.deadline) - new Date(b.deadline);
+  });
+
+  if(visible.length===0){
+    wrap.innerHTML = `<div class="empty"><div class="glyph">◇</div><p>Nothing here yet.</p><p>Tap + to add a deadline before it sneaks up on you.</p></div>`;
+    renderStats();
+    return;
+  }
+
+  wrap.innerHTML = visible.map(t=>{
+    const status = statusOf(t);
+    const d = new Date(t.deadline);
+    const p = timeLeftParts(d.getTime());
+    let n, u;
+    if(t.completed){ n='✓'; u='done'; }
+    else if(status==='overdue'){ n = p.days>0? p.days : p.hours; u = p.days>0 ? 'd late' : 'h late'; }
+    else if(p.days>0){ n=p.days; u='days'; }
+    else if(p.hours>0){ n=p.hours; u='hours'; }
+    else { n=p.mins; u='mins'; }
+
+    const dateStr = d.toLocaleString(undefined,{month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+    return `<div class="task ${status}" data-id="${t.id}">
+      <div class="count"><div class="n">${n}</div><div class="u">${u}</div></div>
+      <div class="body">
+        <p class="title">${escapeHtml(t.title)}</p>
+        <div class="meta">
+          <span class="badge ${t.category}">${catLabel(t.category)}</span>
+          <span>${dateStr}</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  wrap.querySelectorAll('.task').forEach(el=>{
+    el.addEventListener('click', ()=> openDetail(el.dataset.id));
+  });
+
+  renderStats();
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ---------- Add/Edit sheet ----------
+function renderCatRow(){
+  const wrap = document.getElementById('fCatRow');
+  wrap.innerHTML = CATEGORIES.map(c=>`<div class="cat-choice ${draftCategory===c.id?'sel':''}" data-cat="${c.id}">${c.label}</div>`).join('');
+  wrap.querySelectorAll('.cat-choice').forEach(el=>{
+    el.addEventListener('click', ()=>{ draftCategory = el.dataset.cat; renderCatRow(); });
+  });
+}
+function renderChipRow(){
+  const wrap = document.getElementById('fChipRow');
+  wrap.innerHTML = OFFSET_PRESETS.map(p=>{
+    const sel = draftOffsets.includes(p.mins);
+    return `<div class="chip ${sel?'sel':''}" data-mins="${p.mins}">${p.label}</div>`;
+  }).join('');
+  wrap.querySelectorAll('.chip').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const mins = parseInt(el.dataset.mins);
+      const idx = draftOffsets.indexOf(mins);
+      if(idx>-1) draftOffsets.splice(idx,1); else draftOffsets.push(mins);
+      renderChipRow(); renderOffsetList();
+    });
+  });
+}
+function renderOffsetList(){
+  const wrap = document.getElementById('fOffsetList');
+  const sorted = [...draftOffsets].sort((a,b)=>b-a);
+  wrap.innerHTML = sorted.map(m=>`<div class="offset-pill">${fmtOffset(m)}<span class="x" data-mins="${m}">×</span></div>`).join('');
+  wrap.querySelectorAll('.x').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const mins = parseInt(el.dataset.mins);
+      draftOffsets = draftOffsets.filter(m=>m!==mins);
+      renderChipRow(); renderOffsetList();
+    });
+  });
+}
+
+function openSheet(existing){
+  editingId = existing ? existing.id : null;
+  document.getElementById('sheetTitle').textContent = existing ? 'Edit deadline' : 'New deadline';
+  document.getElementById('fTitle').value = existing ? existing.title : '';
+  document.getElementById('fNotes').value = existing ? (existing.notes||'') : '';
+  draftCategory = existing ? existing.category : 'exam';
+  draftOffsets = existing ? [...existing.offsets] : [1440, 60];
+  if(existing){
+    const dt = new Date(existing.deadline);
+    document.getElementById('fDeadline').value = toLocalInputValue(dt);
+  } else {
+    document.getElementById('fDeadline').value = '';
+  }
+  renderCatRow(); renderChipRow(); renderOffsetList();
+  showSheet('sheet');
+}
+function toLocalInputValue(dt){
+  const pad = n => String(n).padStart(2,'0');
+  return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+}
+
+function showSheet(id){
+  document.getElementById('backdrop').classList.add('show');
+  document.getElementById(id).classList.add('show');
+}
+function hideSheets(){
+  document.getElementById('backdrop').classList.remove('show');
+  document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('show'));
+}
+document.getElementById('backdrop').addEventListener('click', hideSheets);
+
+document.getElementById('fabAdd').addEventListener('click', ()=> openSheet(null));
+document.getElementById('fCancel').addEventListener('click', hideSheets);
+
+document.getElementById('fCustomAdd').addEventListener('click', ()=>{
+  const val = parseFloat(document.getElementById('fCustomVal').value);
+  const unit = parseInt(document.getElementById('fCustomUnit').value);
+  if(!val || val<=0) return;
+  const mins = Math.round(val*unit);
+  if(!draftOffsets.includes(mins)) draftOffsets.push(mins);
+  document.getElementById('fCustomVal').value = '';
+  renderChipRow(); renderOffsetList();
+});
+
+document.getElementById('fSave').addEventListener('click', ()=>{
+  const title = document.getElementById('fTitle').value.trim();
+  const deadlineVal = document.getElementById('fDeadline').value;
+  if(!title || !deadlineVal){
+    alert('Add a title and a deadline date/time.');
+    return;
+  }
+  const deadlineIso = new Date(deadlineVal).toISOString();
+  if(editingId){
+    const t = tasks.find(t=>t.id===editingId);
+    t.title = title; t.category = draftCategory; t.deadline = deadlineIso;
+    t.offsets = [...draftOffsets]; t.notes = document.getElementById('fNotes').value.trim();
+    t.notified = (t.notified||[]).filter(m => draftOffsets.includes(m));
+  } else {
+    tasks.push({
+      id: 'id'+Date.now()+Math.random().toString(36).slice(2,7),
+      title, category: draftCategory, deadline: deadlineIso,
+      offsets: [...draftOffsets], notes: document.getElementById('fNotes').value.trim(),
+      completed:false, notified: []
+    });
+  }
+  save(); hideSheets(); renderList();
+});
+
+// ---------- Detail sheet ----------
+let detailId = null;
+function openDetail(id){
+  const t = tasks.find(t=>t.id===id);
+  if(!t) return;
+  detailId = id;
+  document.getElementById('dTitle').textContent = t.title;
+  const d = new Date(t.deadline);
+  document.getElementById('dMeta').textContent =
+    `${catLabel(t.category)} · ${d.toLocaleString(undefined,{dateStyle:'medium', timeStyle:'short'})} · reminders: ${t.offsets.map(fmtOffsetShort).join(', ')||'none'}`;
+  document.getElementById('dNotes').textContent = t.notes || '';
+  document.getElementById('dComplete').textContent = t.completed ? 'Mark not done' : 'Mark done';
+  showSheet('detailSheet');
+}
+document.getElementById('dEdit').addEventListener('click', ()=>{
+  const t = tasks.find(t=>t.id===detailId);
+  hideSheets(); openSheet(t);
+});
+document.getElementById('dComplete').addEventListener('click', ()=>{
+  const t = tasks.find(t=>t.id===detailId);
+  t.completed = !t.completed; save(); hideSheets(); renderList();
+});
+document.getElementById('dDelete').addEventListener('click', ()=>{
+  if(!confirm('Delete this deadline for good?')) return;
+  tasks = tasks.filter(t=>t.id!==detailId);
+  save(); hideSheets(); renderList();
+});
+
+// ---------- Notifications ----------
+function updatePermBanner(){
+  const banner = document.getElementById('permBanner');
+  if('Notification' in window && Notification.permission !== 'granted'){
+    banner.style.display = 'flex';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+document.getElementById('permBtn').addEventListener('click', ()=>{
+  if('Notification' in window){
+    Notification.requestPermission().then(updatePermBanner);
+  }
+});
+
+function checkNotifications(){
+  if(!('Notification' in window) || Notification.permission !== 'granted') return;
+  const now = Date.now();
+  let changed = false;
+  tasks.forEach(t=>{
+    if(t.completed) return;
+    const deadlineMs = new Date(t.deadline).getTime();
+    t.notified = t.notified || [];
+    (t.offsets||[]).forEach(offsetMin=>{
+      const fireAt = deadlineMs - offsetMin*60000;
+      if(now >= fireAt && now - fireAt < 3*60000 && !t.notified.includes(offsetMin)){
+        fireNotification(t, offsetMin);
+        t.notified.push(offsetMin);
+        changed = true;
+      }
+    });
+  });
+  if(changed) save();
+}
+
+function fireNotification(task, offsetMin){
+  const body = offsetMin===0
+    ? `Due right now: ${task.title}`
+    : `${task.title} is due in ${fmtOffset(offsetMin).replace(' before','')}`;
+  try{
+    if(navigator.serviceWorker && navigator.serviceWorker.controller){
+      navigator.serviceWorker.ready.then(reg=>{
+        reg.showNotification('Deadline Deck', {body, tag:task.id+'-'+offsetMin, icon:'icons/icon-192.png'});
+      });
+    } else {
+      new Notification('Deadline Deck', {body, icon:'icons/icon-192.png'});
+    }
+  }catch(e){ console.warn('notify failed', e); }
+}
+
+// ---------- Boot ----------
+function boot(){
+  load();
+  renderTabs();
+  renderList();
+  updatePermBanner();
+  if('Notification' in window && Notification.permission === 'default'){
+    // Don't auto-prompt on load; wait for banner tap. iOS/Android PWAs need a user gesture anyway.
+  }
+  setInterval(()=>{ renderList(); checkNotifications(); }, 20000);
+  checkNotifications();
+
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  }
+}
+boot();
+</script>
+</body>
+</html>
